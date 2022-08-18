@@ -447,8 +447,6 @@ def create_artist_submission():
 
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
-    # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
-    # search for "band" should return "The Wild Sax Band".
     search_term = request.form.get('search_term', '')
 
     artists_found = Artist.query.filter(
