@@ -14,7 +14,6 @@ from logging import Formatter, FileHandler
 from forms import *
 from flask_migrate import Migrate
 from datetime import datetime
-import itertools
 from sqlalchemy import exc
 #----------------------------------------------------------------------------#
 # App Config.
@@ -273,21 +272,33 @@ def index():
 
 @app.route('/venues')
 def venues():
-    venues = Venue.query.all()
+    venues = Venue.query.order_by(Venue.state, Venue.city).all()
 
-    keyfunc = lambda v: (v['city'], v['state'])
-    sorted_venues = sorted(venues, key=keyfunc)
-    grouped_venues = itertools.groupby(sorted_venues, key=keyfunc)
-
-    data = [
-        {
-            'city': key[0],
-            'state': key[1],
-            'venues': list(data)
+    data = []
+    tmp = {}
+    pre_city = None
+    pre_state = None
+    for venue in venues:
+        venue_data = {
+            'id': venue.id,
+            'name': venue.name,
+            'num_upcoming_shows': len(list(filter(lambda x: x.start_time > datetime.today(),
+                                                  venue.shows)))
         }
-        for key, data in grouped_venues]
+        if venue.city == pre_city and venue.state == pre_state:
+            tmp['venues'].append(venue_data)
+        else:
+            if pre_city is not None:
+                data.append(tmp)
+            tmp['city'] = venue.city
+            tmp['state'] = venue.state
+            tmp['venues'] = [venue_data]
+        pre_city = venue.city
+        pre_state = venue.state
 
+    data.append(tmp)
     return render_template('pages/venues.html', areas=data)
+
 
 @app.route('/venues/create', methods=['GET'])
 def create_venue_form():
@@ -321,7 +332,6 @@ def create_venue_submission():
                 )
                 new_venue.insert()
 
-                # on successful db insert, flash success
                 flash(
                     f'Venue {venue_name} was successfully created!', 'success')
                
@@ -429,7 +439,6 @@ def create_artist_submission():
                 )
                 new_artist.insert()
 
-                # on successful db insert, flash success
                 flash(
                     f'Artist {artist_name} was successfully created!', 'success')
 
@@ -449,16 +458,16 @@ def create_artist_submission():
 def search_artists():
     search_term = request.form.get('search_term', '')
 
-    artists_found = Artist.query.filter(
+    find_artist = Artist.query.filter(
         Artist.name.match(f'%{search_term}%')).all()
 
-    formatted_artists = [{
+    changed_artists = [{
         'id': artist.id,
         'name': artist.name,
         'num_upcoming_shows': artist.upcoming_shows_count
     }
-        for artist in artists_found]
-    response = {'count': len(artists_found), 'data': list(formatted_artists)}
+        for artist in find_artist]
+    response = {'count': len(find_artist), 'data': list(changed_artists)}
 
     return render_template('pages/search_artists.html', results=response, search_term=search_term)
 
@@ -509,17 +518,17 @@ def edit_artist(artist_id):
 def edit_artist_submission(artist_id):
 
     # artist record with ID <artist_id> using the new attributes
-    artist_edited = Artist.query.filter_by(id=artist_id).first()
+    artist_altered = Artist.query.filter_by(id=artist_id).first()
 
-    if artist_edited is None:
+    if artist_altered is None:
         abort(404)
 
     form = ArtistForm(request.form)
 
     if form.validate_on_submit():
         form.genres.data = ', '.join(form.genres.data)
-        form.populate_obj(artist_edited)
-        artist_edited.update()
+        form.populate_obj(artist_altered)
+        artist_altered.update()
 
         return redirect(url_for('show_artist', artist_id=artist_id))
 
@@ -557,20 +566,20 @@ def edit_venue(venue_id):
 @app.route('/venues/<int:venue_id>/edit', methods=['POST'])
 def edit_venue_submission(venue_id):
     # venue record with ID <venue_id> using the new attributes
-    venue_edited = Venue.query.filter_by(id=venue_id).first()
+    venue_edit = Venue.query.filter_by(id=venue_id).first()
 
-    if venue_edited is None:
+    if venue_edit is None:
         abort(404)
 
     form = VenueForm(request.form)
 
     if form.validate_on_submit():
         form.genres.data = ', '.join(form.genres.data)
-        form.populate_obj(venue_edited)
-        venue_edited.update()
+        form.populate_obj(venue_edit)
+        venue_edit.update()
         return redirect(url_for('show_venue', venue_id=venue_id))
 
-    return render_template('forms/edit_venue.html', form=form, venue=venue_edited)
+    return render_template('forms/edit_venue.html', form=form, venue=venue_edit)
 
 #  Shows
 #  ----------------------------------------------------------------
